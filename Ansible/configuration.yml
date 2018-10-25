@@ -1,6 +1,6 @@
 #testing
 ---
-- name: install nginx
+- name: mail server
   hosts: 192.168.1.3
   become_user: root
   tasks:
@@ -58,6 +58,7 @@
           unarchive:
             src: /var/www/html/roundcubemail-1.3.7-complete.tar.gz
             dest: /var/www/html
+            remote_src: yes
 
         - name: change permission for /var/www/html/roundcubemail-1.3.7
           file:
@@ -68,10 +69,24 @@
             group: mail
             recurse: yes
 
+        - name: change permission for /var/www/html/roundcubemail-1.3.7
+          file:
+            path: "{{ item.path }}"
+            state: directory
+            owner: www-data
+            group: root
+            recurse: yes
+          with_items:
+            - { path: /var/www/html/roundcubemail-1.3.7/log }
+            - { path: /var/www/html/roundcubemail-1.3.7/temp }
+
         - name: copy file to /etc/nginx/sites-enabled
           copy:
-           src: /root/playbook-yml/test
-           dest: /etc/nginx/sites-enabled
+           src: /root/playbook/test
+           dest: "{{ item.dest }}"
+          with_items:
+           - { dest: /etc/nginx/sites-enabled }
+           - { dest: /etc/nginx/sites-available }
 
         - name: copy config file to /var/www/html/roundcubemail-1.3.7./config
           copy:
