@@ -101,3 +101,10 @@ Next, run the following command to build your own image.
 The name of the image will be named as `mynginx` and the `.` is to indicate the current working directory with all the folders and Dockerfile.
 
 The customised image should be built. Try to run this image and test if the container is working with your configuration.
+
+## Push image to personal Docker Hub
+
+The customised image can be push to a personal Docker Hub account. Thereafter, this will be available remotely for pulling. To do this, login into your docker hub account on your machine. The command to login is `docker login`. Enter your username and password when prompt.
+
+You may also commit a container to an image which you ran previously. use `docker ps -a` to check the container ID of the container you want to commit. Next use the command `docker commit containerID imagename`. The new image will be created and can be verified by using `docker images`. You can also do `docker tag` to give a more detailed tag on the image.
+Lastly, use `docker push imagename` and the image will be push to your personal Docker Hub.
