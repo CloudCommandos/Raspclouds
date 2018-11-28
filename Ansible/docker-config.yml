@@ -1,0 +1,50 @@
+#mail server
+---
+- name: mail server
+  hosts: 192.168.1.3
+  become_user: root
+  tasks:
+        - name: install dependencies
+          apt:
+                name:
+                    - apt-transport-https
+                    - ca-certificates
+                    - curl
+                    - gnupg2
+                    - software-properties-common
+                    - python-pip
+                    - pyhton-apt
+                    - openssl
+                state: present
+        - name: install pexpect
+          pip:
+                name: pexpect
+        - name: adding apt-key for docker
+          apt_key:
+                url: https://download.docker.com/linux/debian/gpg
+                state: present
+        - name: adding docker repo list
+          apt_repository:
+                repo: deb [arch=amd64] https://download.docker.com/linux/debian stretch stable
+                state: present
+        - name: install docker-ce and docker-compose
+          apt:
+                name:
+                    - docker-compose
+                    - docker-ce
+                state: present
+        - name: create directory
+          file:
+                path: /root/dockerproj/docker-mailserver/ssl
+                state: directory
+        - name: generate a self signed OpenSSL certificate
+          expect: 
+                command: openssl req -new -newkey rsa:4096 -x509 -sha256 -days 365 -nodes -out /root/dockerproj/docker-mailserver/ssl/ssl.crt -keyout /root/dockerproj/docker-mailserver/ssl/ssl.key
+                responses: 
+                     "Country Name" : ""
+                     "State or Province Name" : ""
+                     "Locality Name" : ""
+                     "Organization Name" : ""
+                     "Organizational Unit Name" : ""
+                     "Common Name" : ""
+                     "Email Address" : ""
