@@ -50,11 +50,15 @@ To interact and run command in the container:
 
 `docker run -it yourcontainer sh`
 
-Once the container exited, try to always remove the container as it takes up disk space.
+Once the container exited, try to remove the container as it takes up disk space.
 
 To remove container:
 
 `docker rm containerID`
+
+To restart the container:
+
+`docker restart containerID`
 
 If you like to remove a list of exited containers without having to copy every single container ID, simply run this command:
 
@@ -78,14 +82,14 @@ To run the container with environment variables:
 
 Most of information was referenced from [here](https://docker-curriculum.com).
 
-## Building Customise image
-Customisation can be done with the original image and with your own configuration. Configuration files from the local machine can be copy to the original image. This allow you to build a image with your own configuration.
+## Building Custom image
+Customisation can be done with the original image and with your own configuration. Configuration files from the local machine can be copy to the original image. This allow you to build an image with your own configuration.
 
-To create a image, a `Dockerfile` is needed. Create a directory and store all the configurations along with the `Dockerfile` inside.
+To create an image, a `Dockerfile` is needed. Create a directory and store all the configurations along with the `Dockerfile` inside.
 
 Store the configuration files in a sub directory to have a better organisation on the files.
 
-let's build a image with [your own configuration with Nginx based image](https://www.nginx.com/blog/deploying-nginx-nginx-plus-docker/). An example of a `Dockerfile` is shown below.
+let's build an image with [your own configuration with Nginx based image](https://www.nginx.com/blog/deploying-nginx-nginx-plus-docker/). An example of a `Dockerfile` is shown below.
 ```bash
 FROM nginx
 COPY content /usr/share/nginx/html
@@ -104,7 +108,7 @@ The customised image should be built. Try to run this image and test if the cont
 
 ## Push image to personal Docker Hub
 
-The customised image can be push to a personal Docker Hub account. Thereafter, this will be available remotely for pulling. To do this, login into your docker hub account on your machine. The command to login is `docker login`. Enter your username and password when prompt.
+The custom image can be push to a personal Docker Hub account. Thereafter, this will be available remotely for pulling. To do this, login into your docker hub account on your machine. The command to login is `docker login`. Enter your username and password when prompt.
 
 You may also commit a container to an image which you ran previously. use `docker ps -a` to check the container ID of the container you want to commit. Next use the command `docker commit containerID imagename`. The new image will be created and can be verified by using `docker images`. You can also do `docker tag` to give a more detailed tag on the image.
 Lastly, use `docker push imagename` and the image will be push to your personal Docker Hub.
