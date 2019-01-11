@@ -142,5 +142,208 @@ Example of the output for `kubectl get nodes`:
 ```
 NAME     STATUS   ROLES    AGE   VERSION
 debian   Ready    master   48m   v1.13.0
+```
 
+Once the master status is ready, you can now go to each nodes and enter the command to join the cluster as shown above, 'kubeadm join ...'. Below shows an example of the output command `kubectl get nodes`, with a 3 nodes cluster.
+```bash
+NAME     STATUS   ROLES    AGE   VERSION
+master   Ready    master   18h   v1.13.0
+node1    Ready    <none>   18h   v1.13.1
+node2    Ready    <none>   18h   v1.13.1
+node3    Ready    <none>   18h   v1.13.1
+```
+
+## Centralised Logging
+
+To monitor individual nodes can be a hectic job. With a centralised logger, it easy for administrator to monitor all the nodes. One of the common logging stack in kubernetes is Elasticsearch, Fluentd and Kibana aka EFK.
+
+EFK is comprised of:
+
+* **Elasticsearch** is a distributed search and analytics engine, an object store where all logs are stored.
+* **Fluentd** gathers logs from each nodes and forward it to Elasticsearch
+* **Kibana** is a web UI to visualise the Elasticsearch data
+
+Fluentd will be deployed on all the nodes in the cluster and aggregate the logs. Application in docker container writes stdout/stderr logs and stores in `/var/log/containers` directory.    
+​Thereafter, Fluentd will forward the log to the node where Elaasticsearch is hosted. Kibana will access Elasticsearch data and provide a visualisation of the logs collected.
+
+There are YAML files to configure the EFK stack in the Kubernetes GitHub [repository](https://github.com/kubernetes/kubernetes/tree/master/cluster/addons/fluentd-elasticsearch).
+
+You can either clone the whole repository down and run with `kubectl apply -f` or use `kubectl apply -f https://urloftheyaml` to run the YAML file for the EFK stack. In this case, the repository is clone to the master node.
+
+Firstly, the first YAML to run is the `es-statfulset.yaml` file. Do take note that this script does not configure the logs to be stored in a persistent volume. Thus, the logs will be erased when the pods terminates.
+
+To configure a **local** persistent volume, add the following script to the `es-statfulset.yaml` or a separate YAML file to create persistent volume. In this case, the script is added to the existing `es-statfulset.yaml` file. Add the script before the deployment of Elasticsearch.
+Change the size of the storage to your own preference. As the `es-statfulset.yaml` application is created in the namespace `kube-system`, same namespace has to be used for the PersistentVolume and PersistentVolumeClaim. The hostPath define the directory on where the logs should be stored in the node.
+```bash
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  namespace: kube-system
+  name: elasticsearch-volume
+  labels:
+    type: local
+spec:
+  storageClassName: elasticsearch
+  capacity:
+    storage: 1Gi
+  accessModes:
+    - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Retain
+  hostPath:
+    path: "/mnt/data/elasticsearch"
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  namespace: kube-system
+  name: elasticsearch-pv-claim
+  labels:
+    app: elasticsearch-logging
+spec:
+  storageClassName: elasticsearch
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+---
+```
+
+Next, editing the following lines in the `es-statfulset.yaml`.
+```bash
+volumes:
+- name: elasticsearch-logging
+  emptyDir: {}
+```
+and replace it the following:
+```bash
+volumes:
+- name: elasticsearch-logging
+  persistentVolumeClaim:
+    claimName: elasticsearch-pv-claim
+```
+
+Once completed, run
+```bash
+kubectl apply -f es-statfulset.yaml
+```
+Run the following command to check the status of deployment of elasticsearch:
+```bash
+kubectl get pods -l k8s-app=elasticsearch-logging -n kube-system
+```
+If the deployment is successful, you should see the following if the replicas is set as 2:
+```
+NAME                      READY   STATUS    RESTARTS   AGE
+elasticsearch-logging-0   1/1     Running   0          10s
+elasticsearch-logging-1   1/1     Running   0          27s
+```
+
+Run the next YAML file to create a service for the elasticsearch-logging
+```bash
+kubectl apply -f es-service.yaml
+```
+Verify the deployment with the following:
+```bash
+kubectl get svc -l k8s-app=elasticsearch-logging -n kube-system
+```
+
+```
+NAME                    TYPE        CLUSTER-IP     EXTERNAL-IP   PORT(S)    AGE
+elasticsearch-logging   ClusterIP   10.99.68.245   <none>        9200/TCP   44s
+```
+
+Next, let's deployment Fluentd on all the nodes. Note: The existing fluentd deployment YAML file from kubernetes GitHub repository seems to have some issue and the status of the deployment shows that there is a CrashLoopBackOff issue. More details on the issue is as shown below. Thus, another repository is been used to deploy fluentd.
+```bash
+kubectl logs fluentd-es-v2.2.1-8dr56 -n kube-system
+
+
+2019-01-03 08:03:51 +0000 [error]: config error file="/etc/fluent/fluent.conf" error_class=Fluent::ConfigError error="Unknown filter plugin 'concat'. Run 'gem search -rd fluent-plugin' to find plugins"
+```
+
+Run the following command for fluentd configurations:
+```bash
+kubectl apply -f https://raw.githubusercontent.com/ecomm-integration-ballerina/efk-stack/master/fluentd-es-configmap.yaml
+```
+
+Side note: If you are using the kubernetes GitHub `fluentd-es-ds/yaml`, comment out the following lines to allow fluentd to be deployed on all nodes within the cluster:
+```bash
+nodeSelector:
+  beta.kubernetes.io/fluentd-ds-ready: "true"
+```
+
+Run the following command once the above lines are comment out:
+```bash
+kubectl apply -f https://raw.githubusercontent.com/ecomm-integration-ballerina/efk-stack/master/fluentd-es-ds.yaml
+```
+
+Verify the fluentd deployment with the following command:
+```bash
+kubectl get pods -n kube-system -l k8s-app=fluentd-es
+```
+If the deployment is successful, you should see the following for a cluster with 3 worker nodes:
+```
+NAME                      READY   STATUS    RESTARTS   AGE
+fluentd-es-v2.2.0-8hmg4   1/1     Running   0          5s
+fluentd-es-v2.2.0-qvsp5   1/1     Running   0          5s
+fluentd-es-v2.2.0-vxchh   1/1     Running   0          5s
+```
+
+Lastly, lets deploy Kibana.
+```bash
+kubectl apply -f kibana-deployment.yaml
+```
+
+Verify the deployment with the following command:
+```bash
+kubectl get pods  -n kube-system -l k8s-app=kibana-logging
+```
+The output should be as of follows:
+```
+NAME                              READY   STATUS    RESTARTS   AGE
+kibana-logging-764d446c7d-jp6gk   1/1     Running   0          2m29s
+```
+
+Now, run the `kibana-service.yaml` to expose the pods to external using NodePort. But before you apply the YAML file. Add in the following line to enable NodePort in `kibana-service.yaml`.
+```bash
+apiVersion: v1
+kind: Service
+metadata:
+  name: kibana-logging
+  namespace: kube-system
+  labels:
+    k8s-app: kibana-logging
+    kubernetes.io/cluster-service: "true"
+    addonmanager.kubernetes.io/mode: Reconcile
+    kubernetes.io/name: "Kibana"
+spec:
+  ports:
+  - port: 5601
+    protocol: TCP
+    targetPort: ui
+  selector:
+    k8s-app: kibana-logging
+  type: "NodePort" #add in in to enable NodePort
+```
+
+Now deploy the kibana-service.
+```bash
+kubectl apply -f kibana-service.yaml
+```
+Verify the service deployment with the following command:
+```bash
+kubectl get svc  -n kube-system -l k8s-app=kibana-logging
+```
+The output of the above command should be:
+```
+NAME             TYPE       CLUSTER-IP      EXTERNAL-IP   PORT(S)          AGE
+kibana-logging   NodePort   10.109.171.94   <none>        5601:30929/TCP   3s
+```
+
+Now you can open up a browser and enter the IP address of any nodes within the cluster with the port number shown above, in this case is **30929**. http://NodeIPaddress:NodePort Noted: the port number was randomly generated.
+
+If you encounter a issue that shows `{"statusCode":404,"error":"Not Found","message":"Not Found"}` when you open up the site, comment off the following line in `kibana-deployment.yaml`.
+```bash
+- name: SERVER_BASEPATH
+  value: /api/v1/namespaces/kube-system/services/kibana-logging/proxy
 ```
