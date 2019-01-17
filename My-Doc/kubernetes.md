@@ -141,7 +141,7 @@ Enter `kubectl get nodes` to check if your master node is correctly setup. The s
 Example of the output for `kubectl get nodes`:
 ```
 NAME     STATUS   ROLES    AGE   VERSION
-debian   Ready    master   48m   v1.13.0
+master   Ready    master   48m   v1.13.0
 ```
 
 Once the master status is ready, you can now go to each nodes and enter the command to join the cluster as shown above, 'kubeadm join ...'. Below shows an example of the output command `kubectl get nodes`, with a 3 nodes cluster.
@@ -174,7 +174,7 @@ Firstly, the first YAML to run is the `es-statfulset.yaml` file. Do take note th
 
 To configure a **local** persistent volume, add the following script to the `es-statfulset.yaml` or a separate YAML file to create persistent volume. In this case, the script is added to the existing `es-statfulset.yaml` file. Add the script before the deployment of Elasticsearch.
 Change the size of the storage to your own preference. As the `es-statfulset.yaml` application is created in the namespace `kube-system`, same namespace has to be used for the PersistentVolume and PersistentVolumeClaim. The hostPath define the directory on where the logs should be stored in the node.
-```bash
+```yaml
 ---
 apiVersion: v1
 kind: PersistentVolume
@@ -211,13 +211,13 @@ spec:
 ```
 
 Next, editing the following lines in the `es-statfulset.yaml`.
-```bash
+```yaml
 volumes:
 - name: elasticsearch-logging
   emptyDir: {}
 ```
 and replace it the following:
-```bash
+```yaml
 volumes:
 - name: elasticsearch-logging
   persistentVolumeClaim:
@@ -253,7 +253,7 @@ NAME                    TYPE        CLUSTER-IP     EXTERNAL-IP   PORT(S)    AGE
 elasticsearch-logging   ClusterIP   10.99.68.245   <none>        9200/TCP   44s
 ```
 
-Next, let's deployment Fluentd on all the nodes. Note: The existing fluentd deployment YAML file from kubernetes GitHub repository seems to have some issue and the status of the deployment shows that there is a CrashLoopBackOff issue. More details on the issue is as shown below. Thus, another repository is been used to deploy fluentd.
+Next, let's deploy Fluentd as DaemonSet which will deploy it on all the nodes in the cluster. Note: The existing fluentd deployment YAML file from kubernetes GitHub repository seems to have some issue and the status of the deployment shows that there is a CrashLoopBackOff issue. More details on the issue is as shown below. Thus, another repository is been used to deploy fluentd.
 ```bash
 kubectl logs fluentd-es-v2.2.1-8dr56 -n kube-system
 
@@ -304,29 +304,7 @@ NAME                              READY   STATUS    RESTARTS   AGE
 kibana-logging-764d446c7d-jp6gk   1/1     Running   0          2m29s
 ```
 
-Now, run the `kibana-service.yaml` to expose the pods to external using NodePort. But before you apply the YAML file. Add in the following line to enable NodePort in `kibana-service.yaml`.
-```bash
-apiVersion: v1
-kind: Service
-metadata:
-  name: kibana-logging
-  namespace: kube-system
-  labels:
-    k8s-app: kibana-logging
-    kubernetes.io/cluster-service: "true"
-    addonmanager.kubernetes.io/mode: Reconcile
-    kubernetes.io/name: "Kibana"
-spec:
-  ports:
-  - port: 5601
-    protocol: TCP
-    targetPort: ui
-  selector:
-    k8s-app: kibana-logging
-  type: "NodePort" #add in in to enable NodePort
-```
-
-Now deploy the kibana-service.
+Now, run the `kibana-service.yaml` to deploy kibana service.
 ```bash
 kubectl apply -f kibana-service.yaml
 ```
@@ -340,6 +318,32 @@ NAME             TYPE       CLUSTER-IP      EXTERNAL-IP   PORT(S)          AGE
 kibana-logging   NodePort   10.109.171.94   <none>        5601:30929/TCP   3s
 ```
 
+Once the service is up, create an ingress yaml and name it `deployIngressKibana.yaml` and run the ingress yaml
+```yaml
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  name: ingress-kibana
+  namespace: kube-system
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+spec:
+  rules:
+  - host: node1
+    http:
+      paths:
+      - path: /*
+        backend:
+          serviceName: kibana-logging
+          servicePort: 5601
+```
+
+```bash
+kubectl apply -f deployIngressKibana.yaml
+```
+Use `kubectl get ingress --all-namespaces` to check for the ingress deployed.
+
+
 Now you can open up a browser and enter the IP address of any nodes within the cluster with the port number shown above, in this case is **30929**. http://NodeIPaddress:NodePort Noted: the port number was randomly generated.
 
 If you encounter a issue that shows `{"statusCode":404,"error":"Not Found","message":"Not Found"}` when you open up the site, comment off the following line in `kibana-deployment.yaml`.
@@ -347,3 +351,104 @@ If you encounter a issue that shows `{"statusCode":404,"error":"Not Found","mess
 - name: SERVER_BASEPATH
   value: /api/v1/namespaces/kube-system/services/kibana-logging/proxy
 ```
+
+## Centralised Monitoring
+Monitoring the kubernetes cluster is critical for the system administrator. Monitoring provides the platform to understand what is going on inside the system, the performance of the system, how many errors are there etc. One popular monitoring stack is the [Prometheus Stack](https://github.com/coreos/prometheus-operator/tree/master/contrib/kube-prometheus). Prometheus server will utilise service discovery in your cluster and connect to them and pull the metrics from your applications.
+
+
+Here are some of the applications within the Prometheus monitoring stack:
+1. Prometheus - Pull and storing of data in time-series format which are identified by metric name and key/value pairs
+1. Grafana -  Provides web user interface for visualisation and monitoring dashboard for the data collected from Prometheus server
+1. Alertmanager - Sends out notification via various channel such as email, to notify users of alerts.
+1. Node-exporter - Collects system metrics such as cpu, memory, disk and expose them  where Prometheus server will pull the metrics
+
+To start using Prometheus in your kubernetes cluster, `git clone https://github.com/coreos/prometheus-operator.git` the [Prometheus repository](https://github.com/coreos/prometheus-operator/tree/master/contrib/kube-prometheus) from Coreos GitHub to your master node.
+
+change your directory to `prometheus-operator/contrib/kube-prometheus/`.
+
+Enter the following to deploy Prometheus stack:
+```bash
+kubectl apply -f manifests/
+```
+
+Note: run the command twice if errors are shown during the deployment.
+
+Run `kubectl get pods -n monitoring` to check the list of pods deployed for Prometheus stack. An example of `kubectl get pods -n monitoring` for a master and 3 worker nodes cluster shown below.
+```
+NAME                                   READY   STATUS    RESTARTS   AGE
+alertmanager-main-0                    2/2     Running   0          23h
+alertmanager-main-1                    2/2     Running   0          23h
+alertmanager-main-2                    2/2     Running   0          23h
+grafana-777cf74b98-tgt9s               1/1     Running   0          23h
+kube-state-metrics-76b8dd6dd-44jn2     4/4     Running   0          23h
+node-exporter-9dtvp                    2/2     Running   0          23h
+node-exporter-cwdzp                    2/2     Running   0          23h
+node-exporter-wzxmq                    2/2     Running   2          23h
+node-exporter-xsp6t                    2/2     Running   0          23h
+prometheus-adapter-66fc7797fd-pf92l    1/1     Running   0          23h
+prometheus-k8s-0                       3/3     Running   1          23h
+prometheus-k8s-1                       3/3     Running   1          23h
+prometheus-operator-7df4c46d5b-gzqcs   1/1     Running   0          23h
+```
+Node-exporter is deployed as DaemonSet, which will be deployed in all nodes within the cluster.
+
+Make sure all the pods in namespace `monitoring` are running. Next, Prometheus, grafana and alertmanager all have dashboard for web user interface. Do a quick port forwarding on your localhost to check if the applications are working with either your web browser or `curl` function.
+
+To access Prometheus dashboard, enter the following:
+```bash
+kubectl --namespace monitoring port-forward svc/prometheus-k8s 9090
+```
+To accesss Grafana dashboard, enter the following:
+```bash
+kubectl --namespace monitoring port-forward svc/grafana 3000
+```
+To accesss Alertmanager dashboard, enter the following:
+```bash
+kubectl --namespace monitoring port-forward svc/alertmanager-main 9093
+```
+
+Use `http://localhost:portnumber` to access the web interface or `curl http://localhost:portnumber` which will out put `<a href="/graph">Found</a>.` if deployment is successful. The port numbers for each applications are as followed:
+
+| Application | Port Number |
+| --- | --- |
+| Prometheus | 9090 |
+| Grafana | 3000 |
+| Alertmanager | 9093 |
+
+To deploy Prometheus stack with Ingress Controller, we need to create an ingress yaml. The `hostname/subdomainname` can be your hostname of your worker node in `/etc/hosts` or the sub-domain of your site.
+```yaml
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  name: ingress-pga
+  namespace: monitoring
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+spec:
+  rules:
+  - host: hostname/subdomainname
+    http:
+      paths:
+      - path: /*
+        backend:
+          serviceName: prometheus-k8s
+          servicePort: 9090
+  - host: hostname/subdomainname
+    http:
+      paths:
+      - path: /*
+        backend:
+          serviceName: grafana
+          servicePort: 3000
+  - host: hostname/subdomainname
+    http:
+      paths:
+      - path: /*
+        backend:
+          serviceName: alertmanager-main
+          servicePort: 9093
+````
+
+Now you can use the hostname/sub to access the web interface. You can now use Grafan to monitoring the status of your kubernetes cluster!
+
+If you would like to store the data to a persistent volume, head over [here](https://github.com/coreos/prometheus-operator/blob/master/Documentation/user-guides/storage.md) to view the instructions.
