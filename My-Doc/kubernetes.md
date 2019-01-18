@@ -272,7 +272,7 @@ nodeSelector:
   beta.kubernetes.io/fluentd-ds-ready: "true"
 ```
 
-Run the following command once the above lines are comment out:
+Run the following command:
 ```bash
 kubectl apply -f https://raw.githubusercontent.com/ecomm-integration-ballerina/efk-stack/master/fluentd-es-ds.yaml
 ```
@@ -315,7 +315,7 @@ kubectl get svc  -n kube-system -l k8s-app=kibana-logging
 The output of the above command should be:
 ```
 NAME             TYPE       CLUSTER-IP      EXTERNAL-IP   PORT(S)          AGE
-kibana-logging   NodePort   10.109.171.94   <none>        5601:30929/TCP   3s
+kibana-logging   ClusterIP   10.109.171.94   <none>        5601/TCP   3s
 ```
 
 Once the service is up, create an ingress yaml and name it `deployIngressKibana.yaml` and run the ingress yaml
@@ -344,7 +344,7 @@ kubectl apply -f deployIngressKibana.yaml
 Use `kubectl get ingress --all-namespaces` to check for the ingress deployed.
 
 
-Now you can open up a browser and enter the IP address of any nodes within the cluster with the port number shown above, in this case is **30929**. http://NodeIPaddress:NodePort Noted: the port number was randomly generated.
+Now you can open up a browser and enter the your domain name specified in the `deployIngressKibana.yaml` host. 
 
 If you encounter a issue that shows `{"statusCode":404,"error":"Not Found","message":"Not Found"}` when you open up the site, comment off the following line in `kibana-deployment.yaml`.
 ```bash
