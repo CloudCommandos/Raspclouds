@@ -224,6 +224,36 @@ volumes:
     claimName: elasticsearch-pv-claim
 ```
 
+Alternatively, if you are using **Ceph** for your storage, you can add the following lines. Change the IP address accordingly to your Ceph configurations.
+```yaml
+volumes:
+- name: elasticsearch-logging
+  cephfs:
+    monitors:
+      - 192.168.2.3:6789
+      - 192.168.2.4:6789
+      - 192.168.2.5:6789
+    user: admin
+    secretRef:
+      name: cephfs-pass
+    readOnly: false
+    path: "/"
+```
+
+For a single master node, you might encounter an error for your elasticsearch-logging even though the status is running and Kibana web interface shows`plugin:elasticsearch@6.3.2 	Service Unavailable`  
+
+Do a `kubectl logs elasticsearch-logging-0 -n kube-system` to check for error
+```
+[WARN ][o.e.d.z.ZenDiscovery     ] [elasticsearch-logging-0] not enough master nodes discovered during pinging (found [[Candidate{node={elasticsearch-logging-0}{Wc2Yr6gNSsibEjP2CXoTdw}{i6xd9Gt9Q-m14F-ZP0ZIng}{10.244.2.185}{10.244.2.185:9300}, clusterStateVersion=-1}]], but needed [2]), pinging again
+```
+
+If the above error is shown, this can be resolved by add the following two lines to your env section of `es-statefulset.yaml` file.
+```yaml
+   env:
+   ...
+   - name: discovery.zen.minimum_master_nodes #added
+     value: "1" #added
+```
 Once completed, run
 ```bash
 kubectl apply -f es-statfulset.yaml
@@ -267,7 +297,7 @@ kubectl apply -f https://raw.githubusercontent.com/ecomm-integration-ballerina/e
 ```
 
 Side note: If you are using the kubernetes GitHub `fluentd-es-ds/yaml`, comment out the following lines to allow fluentd to be deployed on all nodes within the cluster:
-```bash
+```yaml
 nodeSelector:
   beta.kubernetes.io/fluentd-ds-ready: "true"
 ```
@@ -318,7 +348,7 @@ NAME             TYPE       CLUSTER-IP      EXTERNAL-IP   PORT(S)          AGE
 kibana-logging   ClusterIP   10.109.171.94   <none>        5601/TCP   3s
 ```
 
-Once the service is up, create an ingress yaml and name it `deployIngressKibana.yaml` and run the ingress yaml
+Once the service is up, create an ingress yaml and name it `deployIngressKibana.yaml` and run the ingress yaml.
 ```yaml
 apiVersion: extensions/v1beta1
 kind: Ingress
@@ -344,7 +374,7 @@ kubectl apply -f deployIngressKibana.yaml
 Use `kubectl get ingress --all-namespaces` to check for the ingress deployed.
 
 
-Now you can open up a browser and enter the your domain name specified in the `deployIngressKibana.yaml` host. 
+Now you can open up a browser and enter the your domain name specified in the `deployIngressKibana.yaml` host.
 
 If you encounter a issue that shows `{"statusCode":404,"error":"Not Found","message":"Not Found"}` when you open up the site, comment off the following line in `kibana-deployment.yaml`.
 ```bash
