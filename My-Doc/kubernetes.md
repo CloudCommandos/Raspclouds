@@ -1,9 +1,9 @@
 # Container Orchestrator
-Docker provides the platform to build, ship and run containers. However, what happen when you have multiple containers that you would like to run across multiple servers. Manually managing all the containers manually would be a tedious work. To resolve this issue, container orchestrator comes in play.
+Docker provides the platform to build, ship and run containers. However, what happens when you have multiple containers that you would like to run across multiple servers? Manually managing all the containers manually would be a tedious work. To resolve this issue, container orchestrator comes into play.
 
 Container orchestrator automates the process of deployment, management, networking, scaling and availability of the containers.
 
-Some of the features that a container orchestrator have that Docker doesn't.
+Some of the features that a container orchestrator have that Docker does not.
 
 * Container scheduling
 * Service discovery
@@ -50,9 +50,9 @@ Some key features of Kubernetes are:
 
 A standard Kubernetes setup consists of both master and worker nodes. A master node consists of 3 applications, API server, controller manager and scheduler. Kubernetes API uses command line `kubectl` to describe the desired state.
 
-The worker node consists of 2 processes, kubelet and a proxy (kube-proxy). Kubelet is a "node agent" that start and stop the pods and communicates with Docker Engine at a host level. Kubelet also communicate with API server on the master nodes and manages the containers, associated volumes and images. Kube-proxy reflects the kubernetes networking service on each node.
+The worker node consists of 2 processes, kubelet and a proxy (kube-proxy). Kubelet is a "node agent" that starts and stops the pods and communicates with Docker Engine at a host level. Kubelet also communicates with API server on the master nodes and manages the containers, associated volumes and images. Kube-proxy reflects the kubernetes networking service on each node.
 
-Common terms on Kubernetes:
+Common terms of Kubernetes:
 
 Node: It a worker machine and it maybe either a physical machine or a virtual machine. A Master node controls each worker nodes. A node consists of at least a container runtime and Kubelet.
 
@@ -64,7 +64,7 @@ To list the pods, use `kubectl get pods`. `kubectl describe pods` will show the 
 
 Although pods have IP addresses, but the IP addresses are not exposed outside of the cluster without a Service. Service is required to allow the application to receive traffic.
 
-Here are some of the type of Service available:
+Here are some of the type of Services available:
 
 1. ClusterIP - By default. This service is only reachable within the cluster.
 1. NodePort - Expose the port of each selected node in the cluster via NAT. This makes the service accessible from the outside cluster using NodeIP:NodePort.
