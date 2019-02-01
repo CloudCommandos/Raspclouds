@@ -1,0 +1,25 @@
+global:
+  slack_api_url: 'https://hooks.slack.com/services/<token>'
+route:
+  receiver: 'slack-notifications'
+  group_by: [alertname, datacenter, app]
+
+receivers:
+- name: 'slack-notifications'
+  slack_configs:
+    - channel: '#alerts'
+      send_resolved: true
+      api_url: https://hooks.slack.com/services/<token>
+      username: '{{ template "slack.default.username" . }}'
+      color: '{{ if eq .Status "firing" }}danger{{ else }}good{{ end }}'
+      title: '{{ template "slack.default.title" . }}'
+      title_link: '{{ template "slack.default.titlelink" . }}'
+      text: >-
+        {{ range .Alerts }}
+          *Alert:* {{ .Labels.alertname }} - `{{ .Labels.severity }}`
+          *Description:* {{ .Annotations.message }}
+          *Runbook:* <{{ .Annotations.runbook_url }}|:spiral_note_pad:>
+          *Details:*
+          {{ range .Labels.SortedPairs }} • *{{ .Name }}:* `{{ .Value }}`
+          {{ end }}
+        {{ end }}

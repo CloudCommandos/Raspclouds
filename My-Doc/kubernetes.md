@@ -69,6 +69,7 @@ Here are some of the type of Services available:
 1. ClusterIP - By default. This service is only reachable within the cluster.
 1. NodePort - Expose the port of each selected node in the cluster via NAT. This makes the service accessible from the outside cluster using NodeIP:NodePort.
 1. LoadBalancer - Create an external load balancer in the cloud and assigned it with a fixed external IP address to the service.
+1. Ingress - Using Ingress Controller and allocate subdomain to its respective application containers. Ingress controller need to take control external port 80 and 443. This can be done with NodePort and allow --service-node-port-range=80-32767 in `/etc/kube/manifests/kube-apiserver.yaml`
 
 
  To update container, `kubectl set image nameofdeployment container:version`
@@ -301,6 +302,8 @@ Side note: If you are using the kubernetes GitHub `fluentd-es-ds/yaml`, comment 
 nodeSelector:
   beta.kubernetes.io/fluentd-ds-ready: "true"
 ```
+This will disable the deployment to only deploy on nodes that has the labels stated above.
+
 
 Run the following command:
 ```bash
@@ -437,7 +440,7 @@ To accesss Alertmanager dashboard, enter the following:
 kubectl --namespace monitoring port-forward svc/alertmanager-main 9093
 ```
 
-Use `http://localhost:portnumber` to access the web interface or `curl http://localhost:portnumber` which will out put `<a href="/graph">Found</a>.` if deployment is successful. The port numbers for each applications are as followed:
+Use `http://localhost:portnumber` to access the web interface or `curl http://localhost:portnumber` which will output `<a href="/graph">Found</a>.` if deployment is successful. The port numbers for each applications are as followed:
 
 | Application | Port Number |
 | --- | --- |
@@ -482,3 +485,54 @@ spec:
 Now you can use the hostname/sub to access the web interface. You can now use Grafan to monitoring the status of your kubernetes cluster!
 
 If you would like to store the data to a persistent volume, head over [here](https://github.com/coreos/prometheus-operator/blob/master/Documentation/user-guides/storage.md) to view the instructions.
+
+### Integrating Prometheus Stack with Slack
+
+We can also integrate Slack with Prometheus stack, which enables alertmanager to send alerts to your Slack channel. Firstly, set up your Slack and create a channel for your alerts, in this case `#alerts` will be used.
+
+Next, click on your Slack and go to Administration, and Manage App. Search for Incoming WebHooks. Incoming WebHooks app is required for external sources to post message on your Slack. Add configuration and choose the channel you want to post to, in this case the channel is '#alerts'. Once you selected the channel, click Add Incoming WebHooks integration. A Webhook URL will be generated, **copy down this URL** as it will be used in Alertmanager configuration. Example of the URL: `https://hooks.slack.com/services/<token>`
+
+Alertmanager configuration can be found in `alertmanager-secret.yaml` file. Example of the `alertmanager-secret.yaml` extracted from the `kube-prometheus` repository is shown below.
+```yaml
+apiVersion: v1
+data:
+  alertmanager.yaml: Imdsb2JhbCI6IAogICJyZXNvbHZlX3RpbWVvdXQiOiAiNW0iCiJyZWNlaXZlcnMiOiAKLSAibmFtZSI6ICJudWxsIgoicm91dGUiOiAKICAiZ3JvdXBfYnkiOiAKICAtICJqb2IiCiAgImdyb3VwX2ludGVydmFsIjogIjVtIgogICJncm91cF93YWl0IjogIjMwcyIKICAicmVjZWl2ZXIiOiAibnVsbCIKICAicmVwZWF0X2ludGVydmFsIjogIjEyaCIKICAicm91dGVzIjogCiAgLSAibWF0Y2giOiAKICAgICAgImFsZXJ0bmFtZSI6ICJEZWFkTWFuc1N3aXRjaCIKICAgICJyZWNlaXZlciI6ICJudWxsIg==
+kind: Secret
+...
+```
+
+The long encoded texts you see above is the alertmanager configuration. Let's decode and have a look at the configuration.
+```bash
+echo 'Imdsb2JhbCI6IAogICJyZXNvbHZlX3RpbWVvdXQiOiAiNW0iCiJyZWNlaXZlcnMiOiAKLSAibmFtZSI6ICJudWxsIgoicm91dGUiOiAKICAiZ3JvdXBfYnkiOiAKICAtICJqb2IiCiAgImdyb3VwX2ludGVydmFsIjogIjVtIgogICJncm91cF93YWl0IjogIjMwcyIKICAicmVjZWl2ZXIiOiAibnVsbCIKICAicmVwZWF0X2ludGVydmFsIjogIjEyaCIKICAicm91dGVzIjogCiAgLSAibWF0Y2giOiAKICAgICAgImFsZXJ0bmFtZSI6ICJEZWFkTWFuc1N3aXRjaCIKICAgICJyZWNlaXZlciI6ICJudWxsIg==' | base64 --decode
+```
+Output after decode:
+```yaml
+"global":
+  "resolve_timeout": "5m"
+"receivers":
+- "name": "null"
+"route":
+  "group_by":
+  - "job"
+  "group_interval": "5m"
+  "group_wait": "30s"
+  "receiver": "null"
+  "repeat_interval": "12h"
+  "routes":
+  - "match":
+      "alertname": "DeadMansSwitch"
+    "receiver": "null"
+```
+
+Now lets create a configuration for integrating with Slack. Create a yaml file as `alertmanager.yaml` and paste the content from [alertmanager.yaml](http) or simply download the file. Place your Webhook URL in the `alertmanager.yaml` as indicated.
+
+Once the `alertmanager.yaml` is ready, make sure you delete the `alertanager-secret.yaml` from the `manifests` folder from the `kube-prometheus` repository as you would like to use your own alertmanager configuration. Make sure the namespaces `monitoring` is created as well.
+
+**Note:** Do this steps before you create your Prometheus stack. The alertmanager secret needs to be available first before the deployment.
+
+Now run the following command to create the alertmanager secret with the `alertmanager.yaml` that you just created.
+```bash
+kubectl create secret generic alertmanager-main -n monitoring --from-file=alertmanager.yaml --type=Opaque
+```
+
+Check and make sure the secret is running, thereafter, continue with the steps to deploy the Prometheus stack. Open up the alertmanger web interface, go to Status and you should now see your configuration in the Config section.
