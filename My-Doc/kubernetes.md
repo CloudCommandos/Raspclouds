@@ -532,7 +532,7 @@ Once the `alertmanager.yaml` is ready, make sure you delete the `alertanager-sec
 
 Now run the following command to create the alertmanager secret with the `alertmanager.yaml` that you just created.
 ```bash
-kubectl create secret generic alertmanager-main -n monitoring --from-file=alertmanager.yaml --type=Opaque
+kubectl create secret generic alertmanager-main -n monitoring --from-file=alertmanager.yaml --type=Opaque -oyaml > alertmanager-secret.yaml
 ```
 
 Check and make sure the secret is running, thereafter, continue with the steps to deploy the Prometheus stack. Open up the alertmanger web interface, go to Status and you should now see your configuration in the Config section.
