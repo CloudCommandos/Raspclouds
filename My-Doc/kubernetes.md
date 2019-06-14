@@ -524,7 +524,7 @@ Output after decode:
     "receiver": "null"
 ```
 
-Now lets create a configuration for integrating with Slack. Create a yaml file as `alertmanager.yaml` and paste the content from [alertmanager.yaml](http) or simply download the file. Place your Webhook URL in the `alertmanager.yaml` as indicated.
+Now lets create a configuration for integrating with Slack. Create a yaml file as `alertmanager.yaml` and paste the content from [alertmanager.yaml](https://raw.githubusercontent.com/CloudCommandos/Raspclouds/master/Kubernetes/alertmanager.yaml) or simply download the file. Place your Webhook URL in the `alertmanager.yaml` as indicated.
 
 Once the `alertmanager.yaml` is ready, make sure you delete the `alertanager-secret.yaml` from the `manifests` folder from the `kube-prometheus` repository as you would like to use your own alertmanager configuration. Make sure the namespaces `monitoring` is created as well.
 
