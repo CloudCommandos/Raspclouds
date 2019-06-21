@@ -1,0 +1,30 @@
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  name: ingress-pga
+  namespace: monitoring
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+spec:
+  rules:
+  - host: hostname/subdomainname
+    http:
+      paths:
+      - path: /*
+        backend:
+          serviceName: prometheus-k8s
+          servicePort: 9090
+  - host: hostname/subdomainname
+    http:
+      paths:
+      - path: /*
+        backend:
+          serviceName: grafana
+          servicePort: 3000
+  - host: hostname/subdomainname
+    http:
+      paths:
+      - path: /*
+        backend:
+          serviceName: alertmanager-main
+          servicePort: 9093
